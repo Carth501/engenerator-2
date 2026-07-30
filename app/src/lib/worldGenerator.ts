@@ -84,13 +84,6 @@ const FACTS = [
   "Collects the first coin from every place they have slept.",
 ];
 
-const ARCHETYPES = [
-  { key: "neighbor", label: "Neighbor" },
-  { key: "childhood", label: "Childhood Tie" },
-  { key: "acquaintance", label: "Acquaintance" },
-  { key: "chance", label: "Chance" },
-];
-
 const STRENGTHS = [
   "Warm",
   "Devoted",
@@ -182,10 +175,8 @@ export function generateWorld(seed: string, scale: ScaleName): Character[] {
     ) {
       const partnerCulture = choose(CULTURES, random);
       const partnerName = `${choose(partnerCulture.first, random)} ${choose(partnerCulture.last, random)}`;
-      const archetype = choose(ARCHETYPES, random);
       relationships.push({
         name: partnerName,
-        archetype: archetype.label,
         bond: choose(BONDS, random),
         strength: choose(STRENGTHS, random),
         ageTag: choose(AGE_TAGS, random),

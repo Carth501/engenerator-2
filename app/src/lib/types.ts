@@ -2,7 +2,6 @@ export type ScaleName = "Local" | "Regional" | "Continental";
 
 export interface Relationship {
   name: string;
-  archetype: string;
   bond: string;
   strength: string;
   ageTag: string;

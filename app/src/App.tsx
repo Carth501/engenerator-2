@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import "./App.css";
 import type { Character, ScaleName } from "./lib/types";
 import { generateWorld, wealthLabel } from "./lib/worldGenerator";
+import { useAppStore } from "./store.ts";
 
 const SCALE_OPTIONS: ScaleName[] = ["Local", "Regional", "Continental"];
 
@@ -26,9 +27,10 @@ function rollSeed() {
 }
 
 function App() {
-  const [seedInput, setSeedInput] = useState("ashgrove-01");
-  const [scaleInput, setScaleInput] = useState<ScaleName>("Regional");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const { seed, scale, setSeed, setScale, selectedId, selectCharacter } =
+    useAppStore();
+  const [seedInput, setSeedInput] = useState(seed);
+  const [scaleInput, setScaleInput] = useState<ScaleName>(scale);
 
   const characters = useMemo(
     () => generateWorld(seedInput, scaleInput),
@@ -42,27 +44,39 @@ function App() {
       <header className="topbar">
         <div>
           <p className="eyebrow">Deterministic world generator</p>
-          <h1>Engenerator MVP</h1>
+          <h1 className="text-3xl font-semibold">Engenerator MVP</h1>
         </div>
         <div className="toolbar">
           <label>
             <span>Seed</span>
             <input
               value={seedInput}
-              onChange={(event) => setSeedInput(event.target.value)}
+              onChange={(event) => {
+                setSeedInput(event.target.value);
+                setSeed(event.target.value);
+              }}
               spellCheck={false}
             />
           </label>
-          <button type="button" onClick={() => setSeedInput(rollSeed())}>
+          <button
+            type="button"
+            onClick={() => {
+              const nextSeed = rollSeed();
+              setSeedInput(nextSeed);
+              setSeed(nextSeed);
+            }}
+          >
             Roll seed
           </button>
           <label>
             <span>Scale</span>
             <select
               value={scaleInput}
-              onChange={(event) =>
-                setScaleInput(event.target.value as ScaleName)
-              }
+              onChange={(event) => {
+                const nextScale = event.target.value as ScaleName;
+                setScaleInput(nextScale);
+                setScale(nextScale);
+              }}
             >
               {SCALE_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -95,7 +109,7 @@ function App() {
                 <tr
                   key={character.id}
                   className={selectedId === character.id ? "active" : ""}
-                  onClick={() => setSelectedId(character.id)}
+                  onClick={() => selectCharacter(character.id)}
                 >
                   <td>{character.name}</td>
                   <td>{character.culture}</td>
@@ -148,7 +162,6 @@ function CharacterSheet({ character }: { character: Character }) {
           >
             <div className="relationship-topline">
               <strong>{relationship.name}</strong>
-              <span>{relationship.archetype}</span>
             </div>
             <p>
               {relationship.bond} • {relationship.strength} •{" "}
