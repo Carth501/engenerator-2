@@ -269,10 +269,7 @@ function projectRequestedTies(tiesAxis: number, populationCount: number) {
   );
 }
 
-export type GenerationStage =
-  | "profiles"
-  | "relationship-assembly"
-  | "complete";
+export type GenerationStage = "profiles" | "relationship-assembly" | "complete";
 
 export interface GenerationProgress {
   stage: GenerationStage;
@@ -516,7 +513,11 @@ export async function generateWorldAsync(
 
   const world = generateWorld(seed, scale);
 
-  for (let upperBound = chunkSize; upperBound < world.length + chunkSize; upperBound += chunkSize) {
+  for (
+    let upperBound = chunkSize;
+    upperBound < world.length + chunkSize;
+    upperBound += chunkSize
+  ) {
     throwIfAborted();
 
     const visibleCount = Math.min(upperBound, world.length);
@@ -537,7 +538,11 @@ export async function generateWorldAsync(
     await nextTick();
   }
 
-  for (let upperBound = chunkSize; upperBound < world.length + chunkSize; upperBound += chunkSize) {
+  for (
+    let upperBound = chunkSize;
+    upperBound < world.length + chunkSize;
+    upperBound += chunkSize
+  ) {
     throwIfAborted();
 
     const visibleCount = Math.min(upperBound, world.length);

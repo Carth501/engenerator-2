@@ -73,10 +73,7 @@ function App() {
       },
     })
       .catch((error: unknown) => {
-        if (
-          error instanceof DOMException &&
-          error.name === "AbortError"
-        ) {
+        if (error instanceof DOMException && error.name === "AbortError") {
           return;
         }
 
@@ -161,14 +158,15 @@ function App() {
       </header>
 
       {isGenerating ? (
-        <section className={`generation-status ${generationWarning ? "warning" : ""}`}>
+        <section
+          className={`generation-status ${generationWarning ? "warning" : ""}`}
+        >
           <p>
-            Generating world... stage: {generationStage} • elapsed: {Math.round(generationElapsedMs)} ms
+            Generating world... stage: {generationStage} • elapsed:{" "}
+            {Math.round(generationElapsedMs)} ms
           </p>
           {generationWarning ? (
-            <p>
-              Generation has exceeded 5 seconds and is still in progress.
-            </p>
+            <p>Generation has exceeded 5 seconds and is still in progress.</p>
           ) : null}
         </section>
       ) : null}
