@@ -130,16 +130,6 @@ function hashSeed(input: string): number {
   return hash >>> 0;
 }
 
-function mulberry32(seed: number) {
-  let value = seed;
-  return () => {
-    value = (value + 0x6d2b79f5) | 0;
-    let t = Math.imul(value ^ (value >>> 15), 1 | value);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 function formatValue(value: number) {
   return value.toFixed(5);
 }
@@ -176,27 +166,53 @@ function logCount(log: string[], label: string, value: number, result: number) {
   log.push(`generated ${label}: ${result}, from value: ${formatValue(value)}`);
 }
 
-function logRelationship(
-  log: string[],
-  relationIndex: number,
-  details: {
-    partnerCulture: string;
-    partnerCultureValue: number;
-    partnerFirst: string;
-    partnerFirstValue: number;
-    partnerLast: string;
-    partnerLastValue: number;
-    bond: string;
-    bondValue: number;
-    strength: string;
-    strengthValue: number;
-    ageTag: string;
-    ageTagValue: number;
-  },
+function buildPairKey(aId: number, bId: number) {
+  return aId < bId ? `${aId}:${bId}` : `${bId}:${aId}`;
+}
+
+function buildPairAxis(
+  seed: string,
+  scale: ScaleName,
+  pairKey: string,
+  axis: string,
 ) {
-  log.push(
-    `generated relationship ${relationIndex + 1}: partner ${details.partnerFirst} ${details.partnerLast}, culture ${details.partnerCulture} from value: ${formatValue(details.partnerCultureValue)}, bond ${details.bond} from value: ${formatValue(details.bondValue)}, strength ${details.strength} from value: ${formatValue(details.strengthValue)}, age tag ${details.ageTag} from value: ${formatValue(details.ageTagValue)}`,
+  return hashToUnitInterval(
+    hashSeed(`${seed}::${scale}::pair::${pairKey}::axis::${axis}`),
   );
+}
+
+function relationshipAffinity(owner: Character, candidate: Character) {
+  const sameCulture = owner.culture === candidate.culture ? 1 : 0;
+  const wealthCloseness = 1 - Math.abs(owner.wealth - candidate.wealth);
+  const tieCloseness = 1 - Math.abs(owner.axes.ties - candidate.axes.ties);
+
+  return 0.25 + sameCulture * 0.9 + wealthCloseness * 0.7 + tieCloseness * 0.4;
+}
+
+function chooseWeightedPartner(
+  owner: Character,
+  candidates: Character[],
+  selectionValue: number,
+) {
+  const weightedCandidates = candidates.map((candidate) => ({
+    candidate,
+    weight: relationshipAffinity(owner, candidate),
+  }));
+
+  const totalWeight = weightedCandidates.reduce(
+    (sum, entry) => sum + entry.weight,
+    0,
+  );
+  let cursor = selectionValue * totalWeight;
+
+  for (const entry of weightedCandidates) {
+    cursor -= entry.weight;
+    if (cursor <= 0) {
+      return entry.candidate;
+    }
+  }
+
+  return weightedCandidates[weightedCandidates.length - 1].candidate;
 }
 
 function wealthLabel(wealth: number) {
@@ -257,6 +273,7 @@ export function generateWorld(seed: string, scale: ScaleName): Character[] {
   const count = SCALE_COUNTS[scale];
   const characters: Character[] = [];
   const usedIds = new Set<number>();
+  const targetTiesById = new Map<number, number>();
 
   for (let index = 0; index < count; index += 1) {
     const generationLog: string[] = [];
@@ -296,91 +313,20 @@ export function generateWorld(seed: string, scale: ScaleName): Character[] {
       MAX_RELATIONSHIPS_PER_CHARACTER,
     );
     generationLog.push(
-      `resolved tie contract: requested ${tieContract.requested}, generation limit ${tieContract.generationLimit}, realized ${tieContract.realized}`,
+      `resolved tie contract target: requested ${tieContract.requested}, generation limit ${tieContract.generationLimit}, target realized ${tieContract.realized}`,
     );
     if (tieContract.shortfall > 0) {
       generationLog.push(
-        `applied tie shortfall: ${tieContract.shortfall}, because realized ties are capped by generation limit`,
+        `applied tie shortfall pre-graph: ${tieContract.shortfall}, because realized ties are capped by generation limit`,
       );
     }
 
     const fact = chooseByAxis(FACTS, axes.fact);
     logChoice(generationLog, "fact", axes.fact, fact);
 
-    const relationshipRandom = mulberry32(
-      hashSeed(`${seed}::${scale}::character::${index}::relationships`),
-    );
-
-    const relationships: Relationship[] = [];
-    for (
-      let relationIndex = 0;
-      relationIndex < tieContract.realized;
-      relationIndex += 1
-    ) {
-      const partnerCultureValue = relationshipRandom();
-      const partnerCulture =
-        CULTURES[Math.floor(partnerCultureValue * CULTURES.length)];
-
-      const partnerFirstValue = relationshipRandom();
-      const partnerFirst =
-        partnerCulture.first[
-          Math.floor(partnerFirstValue * partnerCulture.first.length)
-        ];
-
-      const partnerLastValue = relationshipRandom();
-      const partnerLast =
-        partnerCulture.last[
-          Math.floor(partnerLastValue * partnerCulture.last.length)
-        ];
-
-      const bondValue = relationshipRandom();
-      const bond = BONDS[Math.floor(bondValue * BONDS.length)];
-
-      const strengthValue = relationshipRandom();
-      const strength = STRENGTHS[Math.floor(strengthValue * STRENGTHS.length)];
-
-      const ageTagValue = relationshipRandom();
-      const ageTag = AGE_TAGS[Math.floor(ageTagValue * AGE_TAGS.length)];
-
-      relationships.push({
-        name: `${partnerFirst} ${partnerLast}`,
-        bond,
-        strength,
-        ageTag,
-      });
-
-      logRelationship(generationLog, relationIndex, {
-        partnerCulture: partnerCulture.name,
-        partnerCultureValue,
-        partnerFirst,
-        partnerFirstValue,
-        partnerLast,
-        partnerLastValue,
-        bond,
-        bondValue,
-        strength,
-        strengthValue,
-        ageTag,
-        ageTagValue,
-      });
-    }
-
-    const tiesRealized = relationships.length;
-    if (tiesRealized !== tieContract.realized) {
-      generationLog.push(
-        `corrected realized ties from ${tieContract.realized} to ${tiesRealized}, based on materialized relationship count`,
-      );
-    }
-
-    const tieContractFinal = {
-      requested: tieContract.requested,
-      realized: tiesRealized,
-      generationLimit: tieContract.generationLimit,
-      shortfall: Math.max(0, tieContract.requested - tiesRealized),
-    };
-
     const idCandidate = buildDeterministicIdCandidate(seed, scale, index);
     const id = resolveDeterministicId(idCandidate, usedIds, seed, scale, index);
+    targetTiesById.set(id, tieContract.realized);
 
     generationLog.push(`generated id: ${id}, from value: ${idCandidate}`);
     if (id !== idCandidate) {
@@ -395,13 +341,114 @@ export function generateWorld(seed: string, scale: ScaleName): Character[] {
       culture: culture.name,
       wealth,
       tiesRequested,
-      tiesRealized,
-      tieContract: tieContractFinal,
+      tiesRealized: 0,
+      tieContract: {
+        requested: tieContract.requested,
+        realized: 0,
+        generationLimit: tieContract.generationLimit,
+        shortfall: tieContract.requested,
+      },
       axes,
       fact,
-      relationships,
+      relationships: [],
       generationLog,
     });
+  }
+
+  const charactersById = [...characters].sort((a, b) => a.id - b.id);
+  const existingPairs = new Set<string>();
+
+  for (const owner of charactersById) {
+    const target = targetTiesById.get(owner.id) ?? 0;
+
+    while (owner.relationships.length < target) {
+      const candidates = charactersById.filter((candidate) => {
+        if (candidate.id <= owner.id) {
+          return false;
+        }
+
+        const candidateTarget = targetTiesById.get(candidate.id) ?? 0;
+        if (candidate.relationships.length >= candidateTarget) {
+          return false;
+        }
+
+        return !existingPairs.has(buildPairKey(owner.id, candidate.id));
+      });
+
+      if (candidates.length === 0) {
+        owner.generationLog.push(
+          `stopped relationship generation at ${owner.relationships.length} realized ties because no eligible partner slots remained`,
+        );
+        break;
+      }
+
+      const relationIndex = owner.relationships.length;
+      const selectionValue = buildPairAxis(
+        seed,
+        scale,
+        `${owner.id}:${relationIndex}`,
+        "partnerSelection",
+      );
+      const partner = chooseWeightedPartner(owner, candidates, selectionValue);
+      const pairKey = buildPairKey(owner.id, partner.id);
+
+      const bondValue = buildPairAxis(seed, scale, pairKey, "bond");
+      const strengthValue = buildPairAxis(seed, scale, pairKey, "strength");
+      const ageTagValue = buildPairAxis(seed, scale, pairKey, "ageTag");
+
+      const bond = chooseByAxis(BONDS, bondValue);
+      const strength = chooseByAxis(STRENGTHS, strengthValue);
+      const ageTag = chooseByAxis(AGE_TAGS, ageTagValue);
+
+      const ownerRelationship: Relationship = {
+        partnerId: partner.id,
+        ownerId: owner.id,
+        pairKey,
+        name: partner.name,
+        bond,
+        strength,
+        ageTag,
+      };
+
+      const partnerRelationship: Relationship = {
+        partnerId: owner.id,
+        ownerId: owner.id,
+        pairKey,
+        name: owner.name,
+        bond,
+        strength,
+        ageTag,
+      };
+
+      owner.relationships.push(ownerRelationship);
+      partner.relationships.push(partnerRelationship);
+      existingPairs.add(pairKey);
+
+      owner.generationLog.push(
+        `generated relationship ${owner.relationships.length}: partner ${partner.name}, owner id ${owner.id}, pair ${pairKey}, selection value ${formatValue(selectionValue)}, bond ${bond} from value: ${formatValue(bondValue)}, strength ${strength} from value: ${formatValue(strengthValue)}, age tag ${ageTag} from value: ${formatValue(ageTagValue)}`,
+      );
+      partner.generationLog.push(
+        `mirrored relationship from owner id ${owner.id}: partner ${owner.name}, pair ${pairKey}, bond ${bond}, strength ${strength}, age tag ${ageTag}`,
+      );
+    }
+  }
+
+  for (const character of characters) {
+    character.relationships.sort((a, b) => a.pairKey.localeCompare(b.pairKey));
+    const tiesRealized = character.relationships.length;
+    character.tiesRealized = tiesRealized;
+    character.tieContract = {
+      requested: character.tieContract.requested,
+      realized: tiesRealized,
+      generationLimit: character.tieContract.generationLimit,
+      shortfall: Math.max(0, character.tieContract.requested - tiesRealized),
+    };
+
+    if (character.tieContract.shortfall > 0) {
+      character.generationLog.push(
+        `finalized tie shortfall: ${character.tieContract.shortfall}, requested ${character.tieContract.requested}, realized ${character.tieContract.realized}`,
+      );
+    }
   }
 
   return characters;

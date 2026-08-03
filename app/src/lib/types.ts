@@ -1,6 +1,9 @@
 export type ScaleName = "Local" | "Regional" | "Continental";
 
 export interface Relationship {
+  partnerId: number;
+  ownerId: number;
+  pairKey: string;
   name: string;
   bond: string;
   strength: string;
