@@ -54,11 +54,17 @@ function App() {
       }
     }, GENERATION_WARNING_THRESHOLD_MS);
 
-    setIsGenerating(true);
-    setGenerationWarning(false);
-    setGenerationStage("profiles");
-    setGenerationElapsedMs(0);
-    setCharacters([]);
+    queueMicrotask(() => {
+      if (!isActive) {
+        return;
+      }
+
+      setIsGenerating(true);
+      setGenerationWarning(false);
+      setGenerationStage("profiles");
+      setGenerationElapsedMs(0);
+      setCharacters([]);
+    });
 
     void generateWorldAsync(seedInput, scaleInput, {
       signal: abortController.signal,
