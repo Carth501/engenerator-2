@@ -138,8 +138,44 @@ function mulberry32(seed: number) {
   };
 }
 
-function choose<T>(values: T[], random: () => number) {
-  return values[Math.floor(random() * values.length)];
+function formatValue(value: number) {
+  return value.toFixed(5);
+}
+
+function logChoice(
+  log: string[],
+  label: string,
+  value: number,
+  result: string,
+) {
+  log.push(`generated ${label}: ${result}, from value: ${formatValue(value)}`);
+}
+
+function logCount(log: string[], label: string, value: number, result: number) {
+  log.push(`generated ${label}: ${result}, from value: ${formatValue(value)}`);
+}
+
+function logRelationship(
+  log: string[],
+  relationIndex: number,
+  details: {
+    partnerCulture: string;
+    partnerCultureValue: number;
+    partnerFirst: string;
+    partnerFirstValue: number;
+    partnerLast: string;
+    partnerLastValue: number;
+    bond: string;
+    bondValue: number;
+    strength: string;
+    strengthValue: number;
+    ageTag: string;
+    ageTagValue: number;
+  },
+) {
+  log.push(
+    `generated relationship ${relationIndex + 1}: partner ${details.partnerFirst} ${details.partnerLast}, culture ${details.partnerCulture} from value: ${formatValue(details.partnerCultureValue)}, bond ${details.bond} from value: ${formatValue(details.bondValue)}, strength ${details.strength} from value: ${formatValue(details.strengthValue)}, age tag ${details.ageTag} from value: ${formatValue(details.ageTagValue)}`,
+  );
 }
 
 function wealthLabel(wealth: number) {
@@ -186,16 +222,40 @@ export function generateWorld(seed: string, scale: ScaleName): Character[] {
   const usedIds = new Set<number>();
 
   for (let index = 0; index < count; index += 1) {
-    const culture = choose(CULTURES, random);
-    const first = choose(culture.first, random);
-    const last = choose(culture.last, random);
+    const generationLog: string[] = [];
+
+    const cultureValue = random();
+    const culture = CULTURES[Math.floor(cultureValue * CULTURES.length)];
+    logChoice(generationLog, "culture", cultureValue, culture.name);
+
+    const firstValue = random();
+    const first = culture.first[Math.floor(firstValue * culture.first.length)];
+    logChoice(generationLog, "given name", firstValue, first);
+
+    const lastValue = random();
+    const last = culture.last[Math.floor(lastValue * culture.last.length)];
+    logChoice(generationLog, "family name", lastValue, last);
+
     const wealth = random();
+    generationLog.push(
+      `generated wealth: ${wealthLabel(wealth)}, from value: ${formatValue(wealth)}`,
+    );
+
+    const tiesValue = random();
     const tiesRequested = Math.max(
       1,
-      Math.round(Math.log10(count + 1) * 2.4 + (random() - 0.5) * 3),
+      Math.round(Math.log10(count + 1) * 2.4 + (tiesValue - 0.5) * 3),
     );
+    logCount(generationLog, "requested ties", tiesValue, tiesRequested);
+
     const tiesRealized = Math.min(tiesRequested, 6);
-    const fact = choose(FACTS, random);
+    generationLog.push(
+      `resolved realized ties: ${tiesRealized}, from requested ties: ${tiesRequested}`,
+    );
+
+    const factValue = random();
+    const fact = FACTS[Math.floor(factValue * FACTS.length)];
+    logChoice(generationLog, "fact", factValue, fact);
 
     const relationships: Relationship[] = [];
     for (
@@ -203,23 +263,63 @@ export function generateWorld(seed: string, scale: ScaleName): Character[] {
       relationIndex < tiesRealized;
       relationIndex += 1
     ) {
-      const partnerCulture = choose(CULTURES, random);
-      const partnerName = `${choose(partnerCulture.first, random)} ${choose(partnerCulture.last, random)}`;
+      const partnerCultureValue = random();
+      const partnerCulture =
+        CULTURES[Math.floor(partnerCultureValue * CULTURES.length)];
+
+      const partnerFirstValue = random();
+      const partnerFirst =
+        partnerCulture.first[
+          Math.floor(partnerFirstValue * partnerCulture.first.length)
+        ];
+
+      const partnerLastValue = random();
+      const partnerLast =
+        partnerCulture.last[
+          Math.floor(partnerLastValue * partnerCulture.last.length)
+        ];
+
+      const bondValue = random();
+      const bond = BONDS[Math.floor(bondValue * BONDS.length)];
+
+      const strengthValue = random();
+      const strength = STRENGTHS[Math.floor(strengthValue * STRENGTHS.length)];
+
+      const ageTagValue = random();
+      const ageTag = AGE_TAGS[Math.floor(ageTagValue * AGE_TAGS.length)];
+
       relationships.push({
-        name: partnerName,
-        bond: choose(BONDS, random),
-        strength: choose(STRENGTHS, random),
-        ageTag: choose(AGE_TAGS, random),
+        name: `${partnerFirst} ${partnerLast}`,
+        bond,
+        strength,
+        ageTag,
+      });
+
+      logRelationship(generationLog, relationIndex, {
+        partnerCulture: partnerCulture.name,
+        partnerCultureValue,
+        partnerFirst,
+        partnerFirstValue,
+        partnerLast,
+        partnerLastValue,
+        bond,
+        bondValue,
+        strength,
+        strengthValue,
+        ageTag,
+        ageTagValue,
       });
     }
 
-    const id = resolveDeterministicId(
-      buildDeterministicIdCandidate(seed, scale, index),
-      usedIds,
-      seed,
-      scale,
-      index,
-    );
+    const idCandidate = buildDeterministicIdCandidate(seed, scale, index);
+    const id = resolveDeterministicId(idCandidate, usedIds, seed, scale, index);
+
+    generationLog.push(`generated id: ${id}, from value: ${idCandidate}`);
+    if (id !== idCandidate) {
+      generationLog.push(
+        `resolved id collision: candidate ${idCandidate} rehashed deterministically to ${id}`,
+      );
+    }
 
     characters.push({
       id,
@@ -230,6 +330,7 @@ export function generateWorld(seed: string, scale: ScaleName): Character[] {
       tiesRealized,
       fact,
       relationships,
+      generationLog,
     });
   }
 

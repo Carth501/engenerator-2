@@ -16,4 +16,5 @@ export interface Character {
   tiesRealized: number;
   fact: string;
   relationships: Relationship[];
+  generationLog: string[];
 }

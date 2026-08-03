@@ -87,6 +87,11 @@ select {
   cursor: pointer;
 }
 
+.toolbar button.active {
+  background: #7a4d1f;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
 .content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
@@ -182,6 +187,31 @@ tbody tr.active {
   padding: 12px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 12px;
+}
+
+.generation-log-panel {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.generation-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.generation-log-list p {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #d8d0c0;
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 
 .relationship-topline {

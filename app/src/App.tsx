@@ -5,6 +5,7 @@ import { generateWorld, wealthLabel } from "./lib/worldGenerator";
 import { useAppStore } from "./store.ts";
 
 const SCALE_OPTIONS: ScaleName[] = ["Local", "Regional", "Continental"];
+const SHOW_GENERATION_LOG_FEATURE = true;
 
 function seedWords() {
   return [
@@ -31,6 +32,7 @@ function App() {
     useAppStore();
   const [seedInput, setSeedInput] = useState(seed);
   const [scaleInput, setScaleInput] = useState<ScaleName>(scale);
+  const [showGenerationLog, setShowGenerationLog] = useState(false);
 
   const characters = useMemo(
     () => generateWorld(seedInput, scaleInput),
@@ -85,6 +87,15 @@ function App() {
               ))}
             </select>
           </label>
+          {SHOW_GENERATION_LOG_FEATURE ? (
+            <button
+              type="button"
+              className={showGenerationLog ? "active" : ""}
+              onClick={() => setShowGenerationLog((current) => !current)}
+            >
+              {showGenerationLog ? "Hide log" : "Show log"}
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -122,7 +133,12 @@ function App() {
 
         <section className="panel sheet-panel">
           {selectedCharacter ? (
-            <CharacterSheet character={selectedCharacter} />
+            <CharacterSheet
+              character={selectedCharacter}
+              showGenerationLog={
+                SHOW_GENERATION_LOG_FEATURE && showGenerationLog
+              }
+            />
           ) : (
             <EmptySheet />
           )}
@@ -132,7 +148,13 @@ function App() {
   );
 }
 
-function CharacterSheet({ character }: { character: Character }) {
+function CharacterSheet({
+  character,
+  showGenerationLog,
+}: {
+  character: Character;
+  showGenerationLog: boolean;
+}) {
   return (
     <>
       <div className="panel-header">
@@ -170,7 +192,26 @@ function CharacterSheet({ character }: { character: Character }) {
           </article>
         ))}
       </div>
+      {showGenerationLog ? (
+        <GenerationLogPanel entries={character.generationLog} />
+      ) : null}
     </>
+  );
+}
+
+function GenerationLogPanel({ entries }: { entries: string[] }) {
+  return (
+    <section className="generation-log-panel" aria-label="Generation log">
+      <div className="panel-header">
+        <h2>Generation log</h2>
+        <p>{entries.length} steps</p>
+      </div>
+      <div className="generation-log-list">
+        {entries.map((entry, index) => (
+          <p key={`${entry}-${index}`}>{entry}</p>
+        ))}
+      </div>
+    </section>
   );
 }
 
