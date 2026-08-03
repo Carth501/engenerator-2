@@ -124,7 +124,7 @@ function App() {
                 >
                   <td>{character.name}</td>
                   <td>{character.culture}</td>
-                  <td>{character.tiesRealized}</td>
+                  <td>{character.tieContract.realized}</td>
                 </tr>
               ))}
             </tbody>
@@ -168,11 +168,11 @@ function CharacterSheet({
         </div>
         <div>
           <span className="meta-label">Requested ties</span>
-          <strong>{character.tiesRequested}</strong>
+          <strong>{character.tieContract.requested}</strong>
         </div>
         <div>
           <span className="meta-label">Realized ties</span>
-          <strong>{character.tiesRealized}</strong>
+          <strong>{character.tieContract.realized}</strong>
         </div>
       </div>
       <p className="fact">{character.fact}</p>

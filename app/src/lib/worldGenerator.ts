@@ -119,6 +119,8 @@ const SCALE_COUNTS: Record<ScaleName, number> = {
   Continental: 45,
 };
 
+const MAX_RELATIONSHIPS_PER_CHARACTER = 6;
+
 function hashSeed(input: string): number {
   let hash = 2166136261;
   for (let index = 0; index < input.length; index += 1) {
@@ -140,6 +142,25 @@ function mulberry32(seed: number) {
 
 function formatValue(value: number) {
   return value.toFixed(5);
+}
+
+function hashToUnitInterval(hash: number) {
+  return hash / 4294967296;
+}
+
+function buildCharacterAxis(
+  seed: string,
+  scale: ScaleName,
+  index: number,
+  axis: string,
+) {
+  return hashToUnitInterval(
+    hashSeed(`${seed}::${scale}::character::${index}::axis::${axis}`),
+  );
+}
+
+function chooseByAxis<T>(values: T[], axisValue: number) {
+  return values[Math.floor(axisValue * values.length)];
 }
 
 function logChoice(
@@ -215,8 +236,24 @@ function resolveDeterministicId(
   return resolved;
 }
 
+function resolveTieContract(requested: number, generationLimit: number) {
+  const realized = Math.min(requested, generationLimit);
+  return {
+    requested,
+    realized,
+    generationLimit,
+    shortfall: Math.max(0, requested - realized),
+  };
+}
+
+function projectRequestedTies(tiesAxis: number, populationCount: number) {
+  return Math.max(
+    1,
+    Math.round(Math.log10(populationCount + 1) * 2.4 + (tiesAxis - 0.5) * 3),
+  );
+}
+
 export function generateWorld(seed: string, scale: ScaleName): Character[] {
-  const random = mulberry32(hashSeed(`${seed}::${scale}`));
   const count = SCALE_COUNTS[scale];
   const characters: Character[] = [];
   const usedIds = new Set<number>();
@@ -224,68 +261,85 @@ export function generateWorld(seed: string, scale: ScaleName): Character[] {
   for (let index = 0; index < count; index += 1) {
     const generationLog: string[] = [];
 
-    const cultureValue = random();
-    const culture = CULTURES[Math.floor(cultureValue * CULTURES.length)];
-    logChoice(generationLog, "culture", cultureValue, culture.name);
+    const axes = {
+      culture: buildCharacterAxis(seed, scale, index, "culture"),
+      givenName: buildCharacterAxis(seed, scale, index, "givenName"),
+      familyName: buildCharacterAxis(seed, scale, index, "familyName"),
+      wealth: buildCharacterAxis(seed, scale, index, "wealth"),
+      ties: buildCharacterAxis(seed, scale, index, "ties"),
+      fact: buildCharacterAxis(seed, scale, index, "fact"),
+    };
 
-    const firstValue = random();
-    const first = culture.first[Math.floor(firstValue * culture.first.length)];
-    logChoice(generationLog, "given name", firstValue, first);
+    generationLog.push(
+      `generated axis values: culture ${formatValue(axes.culture)}, givenName ${formatValue(axes.givenName)}, familyName ${formatValue(axes.familyName)}, wealth ${formatValue(axes.wealth)}, ties ${formatValue(axes.ties)}, fact ${formatValue(axes.fact)}`,
+    );
 
-    const lastValue = random();
-    const last = culture.last[Math.floor(lastValue * culture.last.length)];
-    logChoice(generationLog, "family name", lastValue, last);
+    const culture = chooseByAxis(CULTURES, axes.culture);
+    logChoice(generationLog, "culture", axes.culture, culture.name);
 
-    const wealth = random();
+    const first = chooseByAxis(culture.first, axes.givenName);
+    logChoice(generationLog, "given name", axes.givenName, first);
+
+    const last = chooseByAxis(culture.last, axes.familyName);
+    logChoice(generationLog, "family name", axes.familyName, last);
+
+    const wealth = axes.wealth;
     generationLog.push(
       `generated wealth: ${wealthLabel(wealth)}, from value: ${formatValue(wealth)}`,
     );
 
-    const tiesValue = random();
-    const tiesRequested = Math.max(
-      1,
-      Math.round(Math.log10(count + 1) * 2.4 + (tiesValue - 0.5) * 3),
-    );
-    logCount(generationLog, "requested ties", tiesValue, tiesRequested);
+    const tiesRequested = projectRequestedTies(axes.ties, count);
+    logCount(generationLog, "requested ties", axes.ties, tiesRequested);
 
-    const tiesRealized = Math.min(tiesRequested, 6);
+    const tieContract = resolveTieContract(
+      tiesRequested,
+      MAX_RELATIONSHIPS_PER_CHARACTER,
+    );
     generationLog.push(
-      `resolved realized ties: ${tiesRealized}, from requested ties: ${tiesRequested}`,
+      `resolved tie contract: requested ${tieContract.requested}, generation limit ${tieContract.generationLimit}, realized ${tieContract.realized}`,
     );
+    if (tieContract.shortfall > 0) {
+      generationLog.push(
+        `applied tie shortfall: ${tieContract.shortfall}, because realized ties are capped by generation limit`,
+      );
+    }
 
-    const factValue = random();
-    const fact = FACTS[Math.floor(factValue * FACTS.length)];
-    logChoice(generationLog, "fact", factValue, fact);
+    const fact = chooseByAxis(FACTS, axes.fact);
+    logChoice(generationLog, "fact", axes.fact, fact);
+
+    const relationshipRandom = mulberry32(
+      hashSeed(`${seed}::${scale}::character::${index}::relationships`),
+    );
 
     const relationships: Relationship[] = [];
     for (
       let relationIndex = 0;
-      relationIndex < tiesRealized;
+      relationIndex < tieContract.realized;
       relationIndex += 1
     ) {
-      const partnerCultureValue = random();
+      const partnerCultureValue = relationshipRandom();
       const partnerCulture =
         CULTURES[Math.floor(partnerCultureValue * CULTURES.length)];
 
-      const partnerFirstValue = random();
+      const partnerFirstValue = relationshipRandom();
       const partnerFirst =
         partnerCulture.first[
           Math.floor(partnerFirstValue * partnerCulture.first.length)
         ];
 
-      const partnerLastValue = random();
+      const partnerLastValue = relationshipRandom();
       const partnerLast =
         partnerCulture.last[
           Math.floor(partnerLastValue * partnerCulture.last.length)
         ];
 
-      const bondValue = random();
+      const bondValue = relationshipRandom();
       const bond = BONDS[Math.floor(bondValue * BONDS.length)];
 
-      const strengthValue = random();
+      const strengthValue = relationshipRandom();
       const strength = STRENGTHS[Math.floor(strengthValue * STRENGTHS.length)];
 
-      const ageTagValue = random();
+      const ageTagValue = relationshipRandom();
       const ageTag = AGE_TAGS[Math.floor(ageTagValue * AGE_TAGS.length)];
 
       relationships.push({
@@ -311,6 +365,20 @@ export function generateWorld(seed: string, scale: ScaleName): Character[] {
       });
     }
 
+    const tiesRealized = relationships.length;
+    if (tiesRealized !== tieContract.realized) {
+      generationLog.push(
+        `corrected realized ties from ${tieContract.realized} to ${tiesRealized}, based on materialized relationship count`,
+      );
+    }
+
+    const tieContractFinal = {
+      requested: tieContract.requested,
+      realized: tiesRealized,
+      generationLimit: tieContract.generationLimit,
+      shortfall: Math.max(0, tieContract.requested - tiesRealized),
+    };
+
     const idCandidate = buildDeterministicIdCandidate(seed, scale, index);
     const id = resolveDeterministicId(idCandidate, usedIds, seed, scale, index);
 
@@ -328,6 +396,8 @@ export function generateWorld(seed: string, scale: ScaleName): Character[] {
       wealth,
       tiesRequested,
       tiesRealized,
+      tieContract: tieContractFinal,
+      axes,
       fact,
       relationships,
       generationLog,
