@@ -150,10 +150,40 @@ function wealthLabel(wealth: number) {
   return "Wealthy";
 }
 
+function buildDeterministicIdCandidate(
+  seed: string,
+  scale: ScaleName,
+  index: number,
+) {
+  return hashSeed(`${seed}::${scale}::character::${index}`);
+}
+
+function resolveDeterministicId(
+  candidate: number,
+  usedIds: Set<number>,
+  seed: string,
+  scale: ScaleName,
+  index: number,
+) {
+  let resolved = candidate;
+  let attempt = 0;
+
+  while (usedIds.has(resolved)) {
+    attempt += 1;
+    resolved = hashSeed(
+      `${seed}::${scale}::character::${index}::${resolved}::${attempt}`,
+    );
+  }
+
+  usedIds.add(resolved);
+  return resolved;
+}
+
 export function generateWorld(seed: string, scale: ScaleName): Character[] {
   const random = mulberry32(hashSeed(`${seed}::${scale}`));
   const count = SCALE_COUNTS[scale];
   const characters: Character[] = [];
+  const usedIds = new Set<number>();
 
   for (let index = 0; index < count; index += 1) {
     const culture = choose(CULTURES, random);
@@ -183,8 +213,16 @@ export function generateWorld(seed: string, scale: ScaleName): Character[] {
       });
     }
 
+    const id = resolveDeterministicId(
+      buildDeterministicIdCandidate(seed, scale, index),
+      usedIds,
+      seed,
+      scale,
+      index,
+    );
+
     characters.push({
-      id: index,
+      id,
       name: `${first} ${last}`,
       culture: culture.name,
       wealth,
