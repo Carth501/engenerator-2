@@ -269,6 +269,52 @@ function projectRequestedTies(tiesAxis: number, populationCount: number) {
   );
 }
 
+export type GenerationStage =
+  | "profiles"
+  | "relationship-assembly"
+  | "complete";
+
+export interface GenerationProgress {
+  stage: GenerationStage;
+  characters: Character[];
+  elapsedMs: number;
+}
+
+interface GenerateWorldAsyncOptions {
+  onProgress?: (progress: GenerationProgress) => void;
+  chunkSize?: number;
+  signal?: AbortSignal;
+}
+
+function nowMs() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+function nextTick() {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
+function cloneWithoutRelationships(character: Character): Character {
+  return {
+    ...character,
+    tiesRealized: 0,
+    tieContract: {
+      ...character.tieContract,
+      realized: 0,
+      shortfall: character.tieContract.requested,
+    },
+    relationships: [],
+  };
+}
+
+function defaultChunkSize(scale: ScaleName) {
+  if (scale === "Local") return 4;
+  if (scale === "Regional") return 6;
+  return 9;
+}
+
 export function generateWorld(seed: string, scale: ScaleName): Character[] {
   const count = SCALE_COUNTS[scale];
   const characters: Character[] = [];
@@ -452,6 +498,70 @@ export function generateWorld(seed: string, scale: ScaleName): Character[] {
   }
 
   return characters;
+}
+
+export async function generateWorldAsync(
+  seed: string,
+  scale: ScaleName,
+  options: GenerateWorldAsyncOptions = {},
+) {
+  const { onProgress, chunkSize = defaultChunkSize(scale), signal } = options;
+  const startedAt = nowMs();
+
+  const throwIfAborted = () => {
+    if (signal?.aborted) {
+      throw new DOMException("Generation aborted", "AbortError");
+    }
+  };
+
+  const world = generateWorld(seed, scale);
+
+  for (let upperBound = chunkSize; upperBound < world.length + chunkSize; upperBound += chunkSize) {
+    throwIfAborted();
+
+    const visibleCount = Math.min(upperBound, world.length);
+    if (visibleCount <= 0) {
+      continue;
+    }
+
+    const partialProfiles = world
+      .slice(0, visibleCount)
+      .map(cloneWithoutRelationships);
+
+    onProgress?.({
+      stage: "profiles",
+      characters: partialProfiles,
+      elapsedMs: nowMs() - startedAt,
+    });
+
+    await nextTick();
+  }
+
+  for (let upperBound = chunkSize; upperBound < world.length + chunkSize; upperBound += chunkSize) {
+    throwIfAborted();
+
+    const visibleCount = Math.min(upperBound, world.length);
+    if (visibleCount <= 0) {
+      continue;
+    }
+
+    onProgress?.({
+      stage: "relationship-assembly",
+      characters: world.slice(0, visibleCount),
+      elapsedMs: nowMs() - startedAt,
+    });
+
+    await nextTick();
+  }
+
+  throwIfAborted();
+  onProgress?.({
+    stage: "complete",
+    characters: world,
+    elapsedMs: nowMs() - startedAt,
+  });
+
+  return world;
 }
 
 export { wealthLabel };

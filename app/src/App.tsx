@@ -1,11 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import type { Character, ScaleName } from "./lib/types";
-import { generateWorld, wealthLabel } from "./lib/worldGenerator";
+import {
+  generateWorldAsync,
+  type GenerationStage,
+  wealthLabel,
+} from "./lib/worldGenerator";
 import { useAppStore } from "./store.ts";
 
 const SCALE_OPTIONS: ScaleName[] = ["Local", "Regional", "Continental"];
 const SHOW_GENERATION_LOG_FEATURE = true;
+const GENERATION_WARNING_THRESHOLD_MS = 5000;
 
 function seedWords() {
   return [
@@ -33,11 +38,67 @@ function App() {
   const [seedInput, setSeedInput] = useState(seed);
   const [scaleInput, setScaleInput] = useState<ScaleName>(scale);
   const [showGenerationLog, setShowGenerationLog] = useState(false);
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationWarning, setGenerationWarning] = useState(false);
+  const [generationStage, setGenerationStage] =
+    useState<GenerationStage>("complete");
+  const [generationElapsedMs, setGenerationElapsedMs] = useState(0);
 
-  const characters = useMemo(
-    () => generateWorld(seedInput, scaleInput),
-    [seedInput, scaleInput],
-  );
+  useEffect(() => {
+    let isActive = true;
+    const abortController = new AbortController();
+    const warningTimer = setTimeout(() => {
+      if (isActive) {
+        setGenerationWarning(true);
+      }
+    }, GENERATION_WARNING_THRESHOLD_MS);
+
+    setIsGenerating(true);
+    setGenerationWarning(false);
+    setGenerationStage("profiles");
+    setGenerationElapsedMs(0);
+    setCharacters([]);
+
+    void generateWorldAsync(seedInput, scaleInput, {
+      signal: abortController.signal,
+      onProgress: (progress) => {
+        if (!isActive) {
+          return;
+        }
+
+        setCharacters(progress.characters);
+        setGenerationStage(progress.stage);
+        setGenerationElapsedMs(progress.elapsedMs);
+      },
+    })
+      .catch((error: unknown) => {
+        if (
+          error instanceof DOMException &&
+          error.name === "AbortError"
+        ) {
+          return;
+        }
+
+        console.error("Failed to generate world", error);
+      })
+      .finally(() => {
+        if (!isActive) {
+          return;
+        }
+
+        clearTimeout(warningTimer);
+        setIsGenerating(false);
+        setGenerationWarning(false);
+      });
+
+    return () => {
+      isActive = false;
+      clearTimeout(warningTimer);
+      abortController.abort();
+    };
+  }, [seedInput, scaleInput]);
+
   const selectedCharacter =
     characters.find((character) => character.id === selectedId) ?? null;
 
@@ -98,6 +159,19 @@ function App() {
           ) : null}
         </div>
       </header>
+
+      {isGenerating ? (
+        <section className={`generation-status ${generationWarning ? "warning" : ""}`}>
+          <p>
+            Generating world... stage: {generationStage} • elapsed: {Math.round(generationElapsedMs)} ms
+          </p>
+          {generationWarning ? (
+            <p>
+              Generation has exceeded 5 seconds and is still in progress.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <main className="content-grid">
         <section className="panel table-panel">

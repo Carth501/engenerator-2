@@ -92,6 +92,33 @@ select {
   border-color: rgba(255, 255, 255, 0.18);
 }
 
+.generation-status {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(142, 163, 199, 0.45);
+  background: rgba(22, 31, 45, 0.9);
+}
+
+.generation-status p {
+  margin: 0;
+  color: #b8c7df;
+  font-size: 0.9rem;
+}
+
+.generation-status p + p {
+  margin-top: 6px;
+}
+
+.generation-status.warning {
+  border-color: rgba(205, 130, 70, 0.8);
+  background: rgba(64, 35, 24, 0.85);
+}
+
+.generation-status.warning p {
+  color: #ffd3a8;
+}
+
 .content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
