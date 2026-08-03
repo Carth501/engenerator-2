@@ -213,6 +213,7 @@ function App() {
           {selectedCharacter ? (
             <CharacterSheet
               character={selectedCharacter}
+              onSelectCharacter={selectCharacter}
               showGenerationLog={
                 SHOW_GENERATION_LOG_FEATURE && showGenerationLog
               }
@@ -228,9 +229,11 @@ function App() {
 
 function CharacterSheet({
   character,
+  onSelectCharacter,
   showGenerationLog,
 }: {
   character: Character;
+  onSelectCharacter: (id: number | null) => void;
   showGenerationLog: boolean;
 }) {
   return (
@@ -256,9 +259,11 @@ function CharacterSheet({
       <p className="fact">{character.fact}</p>
       <div className="relationship-list">
         {character.relationships.map((relationship, index) => (
-          <article
+          <button
+            type="button"
             key={`${character.id}-${index}`}
             className="relationship-card"
+            onClick={() => onSelectCharacter(relationship.partnerId)}
           >
             <div className="relationship-topline">
               <strong>{relationship.name}</strong>
@@ -267,7 +272,7 @@ function CharacterSheet({
               {relationship.bond} • {relationship.strength} •{" "}
               {relationship.ageTag}
             </p>
-          </article>
+          </button>
         ))}
       </div>
       {showGenerationLog ? (
