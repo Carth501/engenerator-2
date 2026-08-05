@@ -13,6 +13,44 @@ select {
   gap: 20px;
 }
 
+.sheet-shell {
+  background: linear-gradient(160deg, var(--sheet-paper), var(--sheet-paper-shadow));
+  color: var(--sheet-ink-text);
+  font-family: ui-serif, Georgia, "Iowan Old Style", serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.sheet-shell .sheet-heading {
+  border-color: rgba(139, 115, 85, 0.25);
+}
+
+.sheet-shell .sheet-label {
+  color: var(--sheet-rule);
+}
+
+.sheet-shell .sheet-card {
+  background: rgba(247, 241, 227, 0.72);
+  border-color: rgba(139, 115, 85, 0.25);
+}
+
+.sheet-shell .sheet-pill {
+  background: rgba(139, 115, 85, 0.3);
+  color: var(--sheet-ink-text);
+}
+
+.sheet-shell .sheet-muted {
+  color: var(--sheet-slate);
+}
+
+.sheet-shell .sheet-rule {
+  border-color: rgba(139, 115, 85, 0.25);
+}
+
+.sheet-shell .sheet-empty {
+  border-color: var(--sheet-ink-line);
+  color: var(--sheet-slate);
+}
+
 @media (max-width: 900px) {
   .content-grid {
     grid-template-columns: 1fr;

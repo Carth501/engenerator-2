@@ -21,6 +21,17 @@
   --shadow-panel: 0 18px 48px rgba(0, 0, 0, 0.28);
   --radius-panel: 20px;
   --radius-card: 12px;
+  --sheet-ink: #1b1f2b;
+  --sheet-ink-panel: #232838;
+  --sheet-ink-line: #343b4f;
+  --sheet-paper: #f2e8d5;
+  --sheet-paper-shadow: #e4d6b8;
+  --sheet-rule: #8b7355;
+  --sheet-wax: #a63d40;
+  --sheet-moss: #5c7a5c;
+  --sheet-slate: #6b7280;
+  --sheet-ink-text: #2b2115;
+  --sheet-cream: #f7f1e3;
 }
 
 :root {
