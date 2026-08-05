@@ -1,11 +1,34 @@
 @import 'tailwindcss';
 
+@theme {
+  --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --color-surface-950: #11141c;
+  --color-surface-900: #1a2130;
+  --color-surface-800: #161f2d;
+  --color-surface-700: #232a3b;
+  --color-cream-50: #f8f5ea;
+  --color-cream-100: #ded8cb;
+  --color-cream-200: #d8d0c0;
+  --color-blue-400: #8ea3c7;
+  --color-blue-300: #aeb8c8;
+  --color-blue-200: #b8c7df;
+  --color-amber-700: #7a4d1f;
+  --color-amber-600: #cd8246;
+  --color-amber-200: #ffd3a8;
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-overlay-soft: rgba(255, 255, 255, 0.05);
+  --color-overlay-strong: rgba(20, 26, 35, 0.95);
+  --shadow-panel: 0 18px 48px rgba(0, 0, 0, 0.28);
+  --radius-panel: 20px;
+  --radius-card: 12px;
+}
+
 :root {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
-  color: #f8f5ea;
-  background-color: #12151c;
+  color: var(--color-cream-50);
+  background-color: var(--color-surface-950);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -16,6 +39,7 @@ body {
   margin: 0;
   min-height: 100vh;
   background: linear-gradient(135deg, #11141c 0%, #1c2330 100%);
+  color: var(--color-cream-50);
 }
 
 #root {
