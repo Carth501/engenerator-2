@@ -18,12 +18,12 @@ export interface TieContract {
 }
 
 export interface CharacterAxes {
-  culture: number;
-  givenName: number;
-  familyName: number;
   wealth: number;
-  ties: number;
-  fact: number;
+  positionX: number;
+  positionY: number;
+  abstract1: number;
+  abstract2: number;
+  abstract3: number;
 }
 
 export interface Character {

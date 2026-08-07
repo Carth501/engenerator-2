@@ -182,11 +182,48 @@ function buildPairAxis(
 }
 
 function relationshipAffinity(owner: Character, candidate: Character) {
-  const sameCulture = owner.culture === candidate.culture ? 1 : 0;
-  const wealthCloseness = 1 - Math.abs(owner.wealth - candidate.wealth);
-  const tieCloseness = 1 - Math.abs(owner.axes.ties - candidate.axes.ties);
+  const wealthCloseness =
+    1 - Math.abs(owner.axes.wealth - candidate.axes.wealth);
+  const positionXCloseness =
+    1 - Math.abs(owner.axes.positionX - candidate.axes.positionX);
+  const positionYCloseness =
+    1 - Math.abs(owner.axes.positionY - candidate.axes.positionY);
+  const abstract1Closeness =
+    1 - Math.abs(owner.axes.abstract1 - candidate.axes.abstract1);
+  const abstract2Closeness =
+    1 - Math.abs(owner.axes.abstract2 - candidate.axes.abstract2);
+  const abstract3Closeness =
+    1 - Math.abs(owner.axes.abstract3 - candidate.axes.abstract3);
 
-  return 0.25 + sameCulture * 0.9 + wealthCloseness * 0.7 + tieCloseness * 0.4;
+  const weightedCloseness =
+    wealthCloseness * 1.2 +
+    positionXCloseness * 1 +
+    positionYCloseness * 1 +
+    abstract1Closeness * 0.5 +
+    abstract2Closeness * 0.5 +
+    abstract3Closeness * 0.5;
+  const normalizedCloseness = weightedCloseness / 4.7;
+
+  // Ensure every candidate retains a non-zero selection chance.
+  return 0.2 + normalizedCloseness;
+}
+
+function deriveCultureAxis(positionX: number, positionY: number) {
+  return (positionX + positionY) / 2;
+}
+
+function deriveSecondaryNameAxis(axis: number) {
+  return (axis * 0.6180339887498949 + 0.2718281828459045) % 1;
+}
+
+function deriveFactAxis(axes: Character["axes"]) {
+  return (axes.abstract2 * 0.5 + axes.abstract3 * 0.5) % 1;
+}
+
+function deriveTiesAxis(axes: Character["axes"]) {
+  return (
+    (axes.abstract1 * 0.36 + axes.abstract2 * 0.34 + axes.abstract3 * 0.3) % 1
+  );
 }
 
 function chooseWeightedPartner(
@@ -322,34 +359,38 @@ function createCharacterProfile(
   const generationLog: string[] = [];
 
   const axes = {
-    culture: buildCharacterAxis(seed, scale, index, "culture"),
-    givenName: buildCharacterAxis(seed, scale, index, "givenName"),
-    familyName: buildCharacterAxis(seed, scale, index, "familyName"),
     wealth: buildCharacterAxis(seed, scale, index, "wealth"),
-    ties: buildCharacterAxis(seed, scale, index, "ties"),
-    fact: buildCharacterAxis(seed, scale, index, "fact"),
+    positionX: buildCharacterAxis(seed, scale, index, "position-x"),
+    positionY: buildCharacterAxis(seed, scale, index, "position-y"),
+    abstract1: buildCharacterAxis(seed, scale, index, "abstract-1"),
+    abstract2: buildCharacterAxis(seed, scale, index, "abstract-2"),
+    abstract3: buildCharacterAxis(seed, scale, index, "abstract-3"),
   };
 
   generationLog.push(
-    `generated axis values: culture ${formatValue(axes.culture)}, givenName ${formatValue(axes.givenName)}, familyName ${formatValue(axes.familyName)}, wealth ${formatValue(axes.wealth)}, ties ${formatValue(axes.ties)}, fact ${formatValue(axes.fact)}`,
+    `generated axis values: wealth ${formatValue(axes.wealth)}, position-x ${formatValue(axes.positionX)}, position-y ${formatValue(axes.positionY)}, abstract-1 ${formatValue(axes.abstract1)}, abstract-2 ${formatValue(axes.abstract2)}, abstract-3 ${formatValue(axes.abstract3)}`,
   );
 
-  const culture = chooseByAxis(CULTURES, axes.culture);
-  logChoice(generationLog, "culture", axes.culture, culture.name);
+  const cultureAxis = deriveCultureAxis(axes.positionX, axes.positionY);
+  const culture = chooseByAxis(CULTURES, cultureAxis);
+  logChoice(generationLog, "culture", cultureAxis, culture.name);
 
-  const first = chooseByAxis(culture.first, axes.givenName);
-  logChoice(generationLog, "given name", axes.givenName, first);
+  const givenNameAxis = axes.abstract1;
+  const first = chooseByAxis(culture.first, givenNameAxis);
+  logChoice(generationLog, "given name", givenNameAxis, first);
 
-  const last = chooseByAxis(culture.last, axes.familyName);
-  logChoice(generationLog, "family name", axes.familyName, last);
+  const familyNameAxis = deriveSecondaryNameAxis(axes.abstract1);
+  const last = chooseByAxis(culture.last, familyNameAxis);
+  logChoice(generationLog, "family name", familyNameAxis, last);
 
   const wealth = axes.wealth;
   generationLog.push(
     `generated wealth: ${wealthLabel(wealth)}, from value: ${formatValue(wealth)}`,
   );
 
-  const tiesRequested = projectRequestedTies(axes.ties, populationCount);
-  logCount(generationLog, "requested ties", axes.ties, tiesRequested);
+  const tiesAxis = deriveTiesAxis(axes);
+  const tiesRequested = projectRequestedTies(tiesAxis, populationCount);
+  logCount(generationLog, "requested ties", tiesAxis, tiesRequested);
 
   const tieContract = resolveTieContract(
     tiesRequested,
@@ -364,8 +405,9 @@ function createCharacterProfile(
     );
   }
 
-  const fact = chooseByAxis(FACTS, axes.fact);
-  logChoice(generationLog, "fact", axes.fact, fact);
+  const factAxis = deriveFactAxis(axes);
+  const fact = chooseByAxis(FACTS, factAxis);
+  logChoice(generationLog, "fact", factAxis, fact);
 
   const idCandidate = buildDeterministicIdCandidate(seed, scale, index);
   const id = resolveDeterministicId(idCandidate, usedIds, seed, scale, index);
