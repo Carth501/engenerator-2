@@ -312,6 +312,96 @@ function defaultChunkSize(scale: ScaleName) {
   return 9;
 }
 
+function createCharacterProfile(
+  seed: string,
+  scale: ScaleName,
+  index: number,
+  populationCount: number,
+  usedIds: Set<number>,
+) {
+  const generationLog: string[] = [];
+
+  const axes = {
+    culture: buildCharacterAxis(seed, scale, index, "culture"),
+    givenName: buildCharacterAxis(seed, scale, index, "givenName"),
+    familyName: buildCharacterAxis(seed, scale, index, "familyName"),
+    wealth: buildCharacterAxis(seed, scale, index, "wealth"),
+    ties: buildCharacterAxis(seed, scale, index, "ties"),
+    fact: buildCharacterAxis(seed, scale, index, "fact"),
+  };
+
+  generationLog.push(
+    `generated axis values: culture ${formatValue(axes.culture)}, givenName ${formatValue(axes.givenName)}, familyName ${formatValue(axes.familyName)}, wealth ${formatValue(axes.wealth)}, ties ${formatValue(axes.ties)}, fact ${formatValue(axes.fact)}`,
+  );
+
+  const culture = chooseByAxis(CULTURES, axes.culture);
+  logChoice(generationLog, "culture", axes.culture, culture.name);
+
+  const first = chooseByAxis(culture.first, axes.givenName);
+  logChoice(generationLog, "given name", axes.givenName, first);
+
+  const last = chooseByAxis(culture.last, axes.familyName);
+  logChoice(generationLog, "family name", axes.familyName, last);
+
+  const wealth = axes.wealth;
+  generationLog.push(
+    `generated wealth: ${wealthLabel(wealth)}, from value: ${formatValue(wealth)}`,
+  );
+
+  const tiesRequested = projectRequestedTies(axes.ties, populationCount);
+  logCount(generationLog, "requested ties", axes.ties, tiesRequested);
+
+  const tieContract = resolveTieContract(
+    tiesRequested,
+    MAX_RELATIONSHIPS_PER_CHARACTER,
+  );
+  generationLog.push(
+    `resolved tie contract target: requested ${tieContract.requested}, generation limit ${tieContract.generationLimit}, target realized ${tieContract.realized}`,
+  );
+  if (tieContract.shortfall > 0) {
+    generationLog.push(
+      `applied tie shortfall pre-graph: ${tieContract.shortfall}, because realized ties are capped by generation limit`,
+    );
+  }
+
+  const fact = chooseByAxis(FACTS, axes.fact);
+  logChoice(generationLog, "fact", axes.fact, fact);
+
+  const idCandidate = buildDeterministicIdCandidate(seed, scale, index);
+  const id = resolveDeterministicId(idCandidate, usedIds, seed, scale, index);
+
+  generationLog.push(`generated id: ${id}, from value: ${idCandidate}`);
+  if (id !== idCandidate) {
+    generationLog.push(
+      `resolved id collision: candidate ${idCandidate} rehashed deterministically to ${id}`,
+    );
+  }
+
+  const character: Character = {
+    id,
+    name: `${first} ${last}`,
+    culture: culture.name,
+    wealth,
+    tiesRequested,
+    tiesRealized: 0,
+    tieContract: {
+      requested: tieContract.requested,
+      realized: 0,
+      generationLimit: tieContract.generationLimit,
+      shortfall: tieContract.requested,
+    },
+    axes,
+    fact,
+    relationships: [],
+    generationLog,
+  };
+
+  return {
+    character,
+    targetRealizedTies: tieContract.realized,
+  };
+}
+
 export function generateWorld(seed: string, scale: ScaleName): Character[] {
   const count = SCALE_COUNTS[scale];
   const characters: Character[] = [];
@@ -319,83 +409,16 @@ export function generateWorld(seed: string, scale: ScaleName): Character[] {
   const targetTiesById = new Map<number, number>();
 
   for (let index = 0; index < count; index += 1) {
-    const generationLog: string[] = [];
-
-    const axes = {
-      culture: buildCharacterAxis(seed, scale, index, "culture"),
-      givenName: buildCharacterAxis(seed, scale, index, "givenName"),
-      familyName: buildCharacterAxis(seed, scale, index, "familyName"),
-      wealth: buildCharacterAxis(seed, scale, index, "wealth"),
-      ties: buildCharacterAxis(seed, scale, index, "ties"),
-      fact: buildCharacterAxis(seed, scale, index, "fact"),
-    };
-
-    generationLog.push(
-      `generated axis values: culture ${formatValue(axes.culture)}, givenName ${formatValue(axes.givenName)}, familyName ${formatValue(axes.familyName)}, wealth ${formatValue(axes.wealth)}, ties ${formatValue(axes.ties)}, fact ${formatValue(axes.fact)}`,
+    const { character, targetRealizedTies } = createCharacterProfile(
+      seed,
+      scale,
+      index,
+      count,
+      usedIds,
     );
 
-    const culture = chooseByAxis(CULTURES, axes.culture);
-    logChoice(generationLog, "culture", axes.culture, culture.name);
-
-    const first = chooseByAxis(culture.first, axes.givenName);
-    logChoice(generationLog, "given name", axes.givenName, first);
-
-    const last = chooseByAxis(culture.last, axes.familyName);
-    logChoice(generationLog, "family name", axes.familyName, last);
-
-    const wealth = axes.wealth;
-    generationLog.push(
-      `generated wealth: ${wealthLabel(wealth)}, from value: ${formatValue(wealth)}`,
-    );
-
-    const tiesRequested = projectRequestedTies(axes.ties, count);
-    logCount(generationLog, "requested ties", axes.ties, tiesRequested);
-
-    const tieContract = resolveTieContract(
-      tiesRequested,
-      MAX_RELATIONSHIPS_PER_CHARACTER,
-    );
-    generationLog.push(
-      `resolved tie contract target: requested ${tieContract.requested}, generation limit ${tieContract.generationLimit}, target realized ${tieContract.realized}`,
-    );
-    if (tieContract.shortfall > 0) {
-      generationLog.push(
-        `applied tie shortfall pre-graph: ${tieContract.shortfall}, because realized ties are capped by generation limit`,
-      );
-    }
-
-    const fact = chooseByAxis(FACTS, axes.fact);
-    logChoice(generationLog, "fact", axes.fact, fact);
-
-    const idCandidate = buildDeterministicIdCandidate(seed, scale, index);
-    const id = resolveDeterministicId(idCandidate, usedIds, seed, scale, index);
-    targetTiesById.set(id, tieContract.realized);
-
-    generationLog.push(`generated id: ${id}, from value: ${idCandidate}`);
-    if (id !== idCandidate) {
-      generationLog.push(
-        `resolved id collision: candidate ${idCandidate} rehashed deterministically to ${id}`,
-      );
-    }
-
-    characters.push({
-      id,
-      name: `${first} ${last}`,
-      culture: culture.name,
-      wealth,
-      tiesRequested,
-      tiesRealized: 0,
-      tieContract: {
-        requested: tieContract.requested,
-        realized: 0,
-        generationLimit: tieContract.generationLimit,
-        shortfall: tieContract.requested,
-      },
-      axes,
-      fact,
-      relationships: [],
-      generationLog,
-    });
+    targetTiesById.set(character.id, targetRealizedTies);
+    characters.push(character);
   }
 
   const charactersById = [...characters].sort((a, b) => a.id - b.id);
