@@ -15,6 +15,26 @@ function indexById(characters: Character[]) {
   return new Map(characters.map((character) => [character.id, character]));
 }
 
+function pearsonCorrelation(xs: number[], ys: number[]) {
+  const count = xs.length;
+  const meanX = xs.reduce((sum, value) => sum + value, 0) / count;
+  const meanY = ys.reduce((sum, value) => sum + value, 0) / count;
+
+  let numerator = 0;
+  let varianceX = 0;
+  let varianceY = 0;
+
+  for (let index = 0; index < count; index += 1) {
+    const deltaX = xs[index] - meanX;
+    const deltaY = ys[index] - meanY;
+    numerator += deltaX * deltaY;
+    varianceX += deltaX * deltaX;
+    varianceY += deltaY * deltaY;
+  }
+
+  return numerator / Math.sqrt(varianceX * varianceY);
+}
+
 describe("generateWorld deterministic contract", () => {
   it("returns identical sync results for repeated calls with same input", () => {
     for (const scale of SCALES) {
@@ -30,6 +50,24 @@ describe("generateWorld deterministic contract", () => {
       const idSet = new Set(world.map((character) => character.id));
       expect(idSet.size).toBe(world.length);
     }
+  });
+
+  it("keeps position axes statistically decorrelated", () => {
+    const positionXValues: number[] = [];
+    const positionYValues: number[] = [];
+
+    for (let seedIndex = 0; seedIndex < 40; seedIndex += 1) {
+      for (const scale of SCALES) {
+        const world = generateWorld(`axis-correlation-${seedIndex}`, scale);
+        for (const character of world) {
+          positionXValues.push(character.axes.positionX);
+          positionYValues.push(character.axes.positionY);
+        }
+      }
+    }
+
+    const correlation = pearsonCorrelation(positionXValues, positionYValues);
+    expect(Math.abs(correlation)).toBeLessThan(0.1);
   });
 
   it("enforces symmetric edges with lower-id ownership", () => {

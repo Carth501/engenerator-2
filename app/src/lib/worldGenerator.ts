@@ -1,3 +1,4 @@
+import { createXXHash3 } from "hash-wasm";
 import type { Character, Relationship, ScaleName } from "./types";
 
 const CULTURES = [
@@ -121,13 +122,42 @@ const SCALE_COUNTS: Record<ScaleName, number> = {
 
 const MAX_RELATIONSHIPS_PER_CHARACTER = 6;
 
+const CHARACTER_AXIS_STREAMS = {
+  wealth: 0x243f6a88,
+  "position-x": 0x85a308d3,
+  "position-y": 0x13198a2e,
+  "abstract-1": 0x03707344,
+  "abstract-2": 0xa4093822,
+  "abstract-3": 0x299f31d0,
+} as const;
+
+const PAIR_AXIS_STREAMS = {
+  partnerSelection: 0x082efa98,
+  bond: 0xec4e6c89,
+  strength: 0x452821e6,
+  ageTag: 0x38d01377,
+} as const;
+
+type CharacterAxisName = keyof typeof CHARACTER_AXIS_STREAMS;
+type PairAxisName = keyof typeof PAIR_AXIS_STREAMS;
+
+const xxHash3 = await createXXHash3();
+
+function digestToUint32(digest: Uint8Array): number {
+  const view = new DataView(
+    digest.buffer,
+    digest.byteOffset,
+    digest.byteLength,
+  );
+  const low = view.getUint32(0, true);
+  const high = view.getUint32(4, true);
+  return (low ^ high) >>> 0;
+}
+
 function hashSeed(input: string): number {
-  let hash = 2166136261;
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
+  xxHash3.init();
+  xxHash3.update(input);
+  return digestToUint32(xxHash3.digest("binary"));
 }
 
 function formatValue(value: number) {
@@ -138,15 +168,32 @@ function hashToUnitInterval(hash: number) {
   return hash / 4294967296;
 }
 
+function mixSeed32(value: number) {
+  let mixed = value >>> 0;
+  mixed ^= mixed >>> 16;
+  mixed = Math.imul(mixed, 0x85ebca6b);
+  mixed ^= mixed >>> 13;
+  mixed = Math.imul(mixed, 0xc2b2ae35);
+  mixed ^= mixed >>> 16;
+  return mixed >>> 0;
+}
+
+function deriveUnitFromBaseSeed(baseSeed: number, streamId: number) {
+  return hashToUnitInterval(mixSeed32((baseSeed + streamId) >>> 0));
+}
+
+function buildCharacterBaseSeed(seed: string, scale: ScaleName, index: number) {
+  return hashSeed(`${seed}::${scale}::character::${index}`);
+}
+
 function buildCharacterAxis(
   seed: string,
   scale: ScaleName,
   index: number,
-  axis: string,
+  axis: CharacterAxisName,
 ) {
-  return hashToUnitInterval(
-    hashSeed(`${seed}::${scale}::character::${index}::axis::${axis}`),
-  );
+  const baseSeed = buildCharacterBaseSeed(seed, scale, index);
+  return deriveUnitFromBaseSeed(baseSeed, CHARACTER_AXIS_STREAMS[axis]);
 }
 
 function chooseByAxis<T>(values: T[], axisValue: number) {
@@ -174,11 +221,10 @@ function buildPairAxis(
   seed: string,
   scale: ScaleName,
   pairKey: string,
-  axis: string,
+  axis: PairAxisName,
 ) {
-  return hashToUnitInterval(
-    hashSeed(`${seed}::${scale}::pair::${pairKey}::axis::${axis}`),
-  );
+  const baseSeed = hashSeed(`${seed}::${scale}::pair::${pairKey}`);
+  return deriveUnitFromBaseSeed(baseSeed, PAIR_AXIS_STREAMS[axis]);
 }
 
 function relationshipAffinity(owner: Character, candidate: Character) {
