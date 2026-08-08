@@ -9,10 +9,33 @@ import {
 import { useAppStore } from "./store.ts";
 
 const SCALE_OPTIONS: ScaleName[] = ["Local", "Regional", "Continental"];
+const AXIS_OPTIONS = [
+  { key: "wealth", label: "Wealth" },
+  { key: "positionX", label: "Position X" },
+  { key: "positionY", label: "Position Y" },
+  { key: "abstract1", label: "Abstract 1" },
+  { key: "abstract2", label: "Abstract 2" },
+  { key: "abstract3", label: "Abstract 3" },
+] as const;
 const SHOW_GENERATION_LOG_FEATURE = true;
 const GENERATION_WARNING_THRESHOLD_MS = 5000;
 const panelClassName =
   "rounded-[20px] border border-[color:var(--color-border)] bg-[color:var(--color-overlay-strong)] p-5 shadow-panel";
+
+type CharacterSheetTab = "sheet" | "visualizer";
+type AxisKey = (typeof AXIS_OPTIONS)[number]["key"];
+
+function findDistinctAxis(
+  excludedAxis: AxisKey,
+  preferredAxis?: AxisKey,
+): AxisKey {
+  if (preferredAxis && preferredAxis !== excludedAxis) {
+    return preferredAxis;
+  }
+
+  const fallback = AXIS_OPTIONS.find(({ key }) => key !== excludedAxis);
+  return fallback ? fallback.key : "wealth";
+}
 
 function seedWords() {
   return [
@@ -245,24 +268,106 @@ function App() {
         </section>
 
         <section className={`${panelClassName} flex flex-col gap-3.5`}>
-          {selectedCharacter ? (
-            <CharacterSheet
-              character={selectedCharacter}
-              onSelectCharacter={selectCharacter}
-              showGenerationLog={
-                SHOW_GENERATION_LOG_FEATURE && showGenerationLog
-              }
-            />
-          ) : (
-            <EmptySheet />
-          )}
+          <CharacterWorkspace
+            characters={characters}
+            selectedCharacter={selectedCharacter}
+            selectedId={selectedId}
+            onSelectCharacter={selectCharacter}
+            showGenerationLog={SHOW_GENERATION_LOG_FEATURE && showGenerationLog}
+          />
         </section>
       </main>
     </div>
   );
 }
 
-function CharacterSheet({
+function CharacterWorkspace({
+  characters,
+  selectedCharacter,
+  selectedId,
+  onSelectCharacter,
+  showGenerationLog,
+}: {
+  characters: Character[];
+  selectedCharacter: Character | null;
+  selectedId: number | null;
+  onSelectCharacter: (id: number | null) => void;
+  showGenerationLog: boolean;
+}) {
+  const [activeTab, setActiveTab] = useState<CharacterSheetTab>("sheet");
+  const [xAxis, setXAxis] = useState<AxisKey>("positionX");
+  const [yAxis, setYAxis] = useState<AxisKey>("positionY");
+
+  const handleXAxisChange = (nextXAxis: AxisKey) => {
+    if (nextXAxis === yAxis) {
+      setYAxis(findDistinctAxis(nextXAxis, xAxis));
+    }
+
+    setXAxis(nextXAxis);
+  };
+
+  const handleYAxisChange = (nextYAxis: AxisKey) => {
+    if (nextYAxis === xAxis) {
+      setXAxis(findDistinctAxis(nextYAxis, yAxis));
+    }
+
+    setYAxis(nextYAxis);
+  };
+
+  return (
+    <div className="sheet-shell flex flex-1 flex-col rounded-[22px] border border-[color:var(--sheet-rule)]/70 p-5">
+      <div className="sheet-tabs flex gap-2 border-b pb-3">
+        <button
+          type="button"
+          className={`sheet-tab rounded-[10px] border px-3 py-1.5 text-xs uppercase tracking-[0.22em] transition ${
+            activeTab === "sheet"
+              ? "is-active"
+              : "hover:opacity-90 focus:outline-none focus-visible:opacity-90"
+          }`}
+          onClick={() => setActiveTab("sheet")}
+        >
+          Character sheet
+        </button>
+        <button
+          type="button"
+          className={`sheet-tab rounded-[10px] border px-3 py-1.5 text-xs uppercase tracking-[0.22em] transition ${
+            activeTab === "visualizer"
+              ? "is-active"
+              : "hover:opacity-90 focus:outline-none focus-visible:opacity-90"
+          }`}
+          onClick={() => setActiveTab("visualizer")}
+        >
+          Axis visualizer
+        </button>
+      </div>
+      <div className="mt-4 flex flex-1 flex-col">
+        {activeTab === "sheet" ? (
+          selectedCharacter ? (
+            <CharacterSheetPane
+              character={selectedCharacter}
+              onSelectCharacter={onSelectCharacter}
+              showGenerationLog={showGenerationLog}
+            />
+          ) : (
+            <EmptySheet />
+          )
+        ) : (
+          <AxisVisualizerPane
+            characters={characters}
+            selectedId={selectedId}
+            onSelectCharacter={onSelectCharacter}
+            xAxis={xAxis}
+            yAxis={yAxis}
+            onXAxisChange={handleXAxisChange}
+            onYAxisChange={handleYAxisChange}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CharacterSheetPane({
   character,
   onSelectCharacter,
   showGenerationLog,
@@ -272,7 +377,7 @@ function CharacterSheet({
   showGenerationLog: boolean;
 }) {
   return (
-    <div className="sheet-shell flex flex-1 flex-col gap-4 rounded-[22px] border border-[color:var(--sheet-rule)]/70 p-5">
+    <div className="flex flex-1 flex-col gap-4">
       <div className="sheet-heading flex items-baseline justify-between gap-3 border-b pb-3">
         <h2 className="text-2xl font-semibold tracking-[0.02em]">
           {character.name}
@@ -329,6 +434,207 @@ function CharacterSheet({
   );
 }
 
+function AxisVisualizerPane({
+  characters,
+  selectedId,
+  onSelectCharacter,
+  xAxis,
+  yAxis,
+  onXAxisChange,
+  onYAxisChange,
+}: {
+  characters: Character[];
+  selectedId: number | null;
+  onSelectCharacter: (id: number | null) => void;
+  xAxis: AxisKey;
+  yAxis: AxisKey;
+  onXAxisChange: (axis: AxisKey) => void;
+  onYAxisChange: (axis: AxisKey) => void;
+}) {
+  const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const chartWidth = 540;
+  const chartHeight = 340;
+  const chartPadding = 34;
+  const plotWidth = chartWidth - chartPadding * 2;
+  const plotHeight = chartHeight - chartPadding * 2;
+  const labeledIds = new Set<number>();
+
+  if (selectedId !== null) {
+    labeledIds.add(selectedId);
+  }
+
+  if (hoveredId !== null) {
+    labeledIds.add(hoveredId);
+  }
+
+  const points = characters.map((character) => {
+    const x = Math.min(Math.max(character.axes[xAxis], 0), 1);
+    const y = Math.min(Math.max(character.axes[yAxis], 0), 1);
+
+    return {
+      character,
+      chartX: chartPadding + x * plotWidth,
+      chartY: chartHeight - chartPadding - y * plotHeight,
+    };
+  });
+
+  return (
+    <section
+      className="axis-visualizer flex flex-1 flex-col gap-3"
+      aria-label="Character axis visualizer"
+    >
+      <div className="axis-grid grid gap-2 md:grid-cols-2">
+        <label className="flex flex-col gap-1.5 text-xs uppercase tracking-[0.2em]">
+          <span className="sheet-label">X axis</span>
+          <select
+            className="sheet-select rounded-[10px] border px-2.5 py-2 text-sm outline-none transition"
+            value={xAxis}
+            onChange={(event) => onXAxisChange(event.target.value as AxisKey)}
+          >
+            {AXIS_OPTIONS.map((axis) => (
+              <option key={axis.key} value={axis.key}>
+                {axis.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1.5 text-xs uppercase tracking-[0.2em]">
+          <span className="sheet-label">Y axis</span>
+          <select
+            className="sheet-select rounded-[10px] border px-2.5 py-2 text-sm outline-none transition"
+            value={yAxis}
+            onChange={(event) => onYAxisChange(event.target.value as AxisKey)}
+          >
+            {AXIS_OPTIONS.map((axis) => (
+              <option key={axis.key} value={axis.key}>
+                {axis.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {characters.length === 0 ? (
+        <div className="sheet-empty grid min-h-52 place-items-center rounded-[12px] border border-dashed p-4 text-center">
+          <p className="sheet-muted m-0 text-sm">
+            Generate a world to plot characters on the axis chart.
+          </p>
+        </div>
+      ) : (
+        <div className="axis-frame min-h-0 flex-1 rounded-[12px] border p-3">
+          <svg
+            viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+            className="h-full w-full"
+            role="img"
+            aria-label="Scatter chart of characters by selected axes"
+          >
+            {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
+              const x = chartPadding + tick * plotWidth;
+              const y = chartHeight - chartPadding - tick * plotHeight;
+
+              return (
+                <g key={tick}>
+                  <line
+                    x1={x}
+                    y1={chartPadding}
+                    x2={x}
+                    y2={chartHeight - chartPadding}
+                    className="axis-grid-line"
+                  />
+                  <line
+                    x1={chartPadding}
+                    y1={y}
+                    x2={chartWidth - chartPadding}
+                    y2={y}
+                    className="axis-grid-line"
+                  />
+                </g>
+              );
+            })}
+
+            <line
+              x1={chartPadding}
+              y1={chartHeight - chartPadding}
+              x2={chartWidth - chartPadding}
+              y2={chartHeight - chartPadding}
+              className="axis-line"
+            />
+            <line
+              x1={chartPadding}
+              y1={chartPadding}
+              x2={chartPadding}
+              y2={chartHeight - chartPadding}
+              className="axis-line"
+            />
+
+            <text
+              x={chartWidth / 2}
+              y={chartHeight - 8}
+              textAnchor="middle"
+              className="axis-label"
+            >
+              {AXIS_OPTIONS.find((axis) => axis.key === xAxis)?.label}
+            </text>
+            <text
+              x={12}
+              y={chartHeight / 2}
+              textAnchor="middle"
+              className="axis-label"
+              transform={`rotate(-90 12 ${chartHeight / 2})`}
+            >
+              {AXIS_OPTIONS.find((axis) => axis.key === yAxis)?.label}
+            </text>
+
+            {points.map(({ character, chartX, chartY }) => {
+              const isSelected = selectedId === character.id;
+              const isHovered = hoveredId === character.id;
+              const className = isSelected
+                ? "axis-point is-selected"
+                : isHovered
+                  ? "axis-point is-hovered"
+                  : "axis-point";
+
+              return (
+                <circle
+                  key={character.id}
+                  cx={chartX}
+                  cy={chartY}
+                  r={isSelected ? 5.5 : isHovered ? 4.5 : 3.5}
+                  className={className}
+                  onMouseEnter={() => setHoveredId(character.id)}
+                  onMouseLeave={() =>
+                    setHoveredId((current) =>
+                      current === character.id ? null : current,
+                    )
+                  }
+                  onClick={() => onSelectCharacter(character.id)}
+                />
+              );
+            })}
+
+            {points
+              .filter(({ character }) => labeledIds.has(character.id))
+              .map(({ character, chartX, chartY }) => (
+                <text
+                  key={`label-${character.id}`}
+                  x={chartX + 7}
+                  y={chartY - 7}
+                  className="axis-point-label"
+                >
+                  {character.name}
+                </text>
+              ))}
+          </svg>
+        </div>
+      )}
+      <p className="sheet-muted m-0 text-xs leading-5">
+        All characters are plotted. Labels appear for hovered and selected
+        points.
+      </p>
+    </section>
+  );
+}
+
 function GenerationLogPanel({ entries }: { entries: string[] }) {
   return (
     <section
@@ -355,7 +661,7 @@ function GenerationLogPanel({ entries }: { entries: string[] }) {
 
 function EmptySheet() {
   return (
-    <div className="sheet-shell grid min-h-60 place-items-center rounded-[22px] border border-dashed border-[color:var(--sheet-ink-line)] px-6 text-center">
+    <div className="sheet-empty grid min-h-60 place-items-center rounded-[14px] border border-dashed px-6 text-center">
       <div>
         <h2 className="sheet-label mb-2 text-lg font-semibold tracking-tight">
           Choose a character
