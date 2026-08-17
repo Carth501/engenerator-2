@@ -19,6 +19,7 @@ const AXIS_OPTIONS = [
 ] as const;
 const SHOW_GENERATION_LOG_FEATURE = true;
 const GENERATION_WARNING_THRESHOLD_MS = 5000;
+const ROSTER_PAGE_SIZE = 20;
 const panelClassName =
   "rounded-[20px] border border-[color:var(--color-border)] bg-[color:var(--color-overlay-strong)] p-5 shadow-panel";
 
@@ -69,6 +70,22 @@ function App() {
   const [generationStage, setGenerationStage] =
     useState<GenerationStage>("complete");
   const [generationElapsedMs, setGenerationElapsedMs] = useState(0);
+  const [rosterPage, setRosterPage] = useState(1);
+
+  const rosterTotalPages = Math.max(
+    1,
+    Math.ceil(characters.length / ROSTER_PAGE_SIZE),
+  );
+  const safeRosterPage = Math.min(rosterPage, rosterTotalPages);
+  const rosterStartIndex = (safeRosterPage - 1) * ROSTER_PAGE_SIZE;
+  const rosterEndIndex = Math.min(
+    rosterStartIndex + ROSTER_PAGE_SIZE,
+    characters.length,
+  );
+  const rosterPageCharacters = characters.slice(
+    rosterStartIndex,
+    rosterEndIndex,
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -241,7 +258,7 @@ function App() {
                 </tr>
               </thead>
               <tbody>
-                {characters.map((character) => (
+                {rosterPageCharacters.map((character) => (
                   <tr
                     key={character.id}
                     className={`cursor-pointer transition ${
@@ -262,8 +279,52 @@ function App() {
                     </td>
                   </tr>
                 ))}
+                {rosterPageCharacters.length === 0 ? (
+                  <tr>
+                    <td
+                      className="border-t border-border px-3 py-6 text-center text-blue-300"
+                      colSpan={3}
+                    >
+                      No characters generated yet.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3 text-xs text-blue-300">
+            <p>
+              {characters.length === 0
+                ? "Showing 0 of 0"
+                : `Showing ${rosterStartIndex + 1}-${rosterEndIndex} of ${characters.length}`}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-white/10 bg-surface-800 px-2.5 py-1.5 text-cream-50 transition hover:border-blue-400 hover:bg-surface-700 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() =>
+                  setRosterPage((current) => Math.max(1, current - 1))
+                }
+                disabled={safeRosterPage === 1}
+              >
+                Previous
+              </button>
+              <span className="min-w-20 text-center text-blue-200">
+                Page {safeRosterPage} of {rosterTotalPages}
+              </span>
+              <button
+                type="button"
+                className="rounded-lg border border-white/10 bg-surface-800 px-2.5 py-1.5 text-cream-50 transition hover:border-blue-400 hover:bg-surface-700 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() =>
+                  setRosterPage((current) =>
+                    Math.min(rosterTotalPages, current + 1),
+                  )
+                }
+                disabled={safeRosterPage === rosterTotalPages}
+              >
+                Next
+              </button>
+            </div>
           </div>
         </section>
 
