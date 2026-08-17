@@ -120,6 +120,12 @@ const SCALE_COUNTS: Record<ScaleName, number> = {
   Continental: 45,
 };
 
+const SCALE_DISTANCES: Record<ScaleName, number> = {
+  Local: 15,
+  Regional: 100,
+  Continental: 3000,
+};
+
 const MAX_RELATIONSHIPS_PER_CHARACTER = 6;
 
 const CHARACTER_AXIS_STREAMS = {
@@ -194,6 +200,16 @@ function buildCharacterAxis(
 ) {
   const baseSeed = buildCharacterBaseSeed(seed, scale, index);
   return deriveUnitFromBaseSeed(baseSeed, CHARACTER_AXIS_STREAMS[axis]);
+}
+
+function buildCharacterSpatialAxis(
+  seed: string,
+  scale: ScaleName,
+  index: number,
+  axis: CharacterAxisName,
+) {
+  const baseSeed = buildCharacterAxis(seed, scale, index, axis);
+  return baseSeed * SCALE_DISTANCES[scale];
 }
 
 function chooseByAxis<T>(values: T[], axisValue: number) {
@@ -406,8 +422,8 @@ function createCharacterProfile(
 
   const axes = {
     wealth: buildCharacterAxis(seed, scale, index, "wealth"),
-    positionX: buildCharacterAxis(seed, scale, index, "position-x"),
-    positionY: buildCharacterAxis(seed, scale, index, "position-y"),
+    positionX: buildCharacterSpatialAxis(seed, scale, index, "position-x"),
+    positionY: buildCharacterSpatialAxis(seed, scale, index, "position-y"),
     abstract1: buildCharacterAxis(seed, scale, index, "abstract-1"),
     abstract2: buildCharacterAxis(seed, scale, index, "abstract-2"),
     abstract3: buildCharacterAxis(seed, scale, index, "abstract-3"),
@@ -417,7 +433,13 @@ function createCharacterProfile(
     `generated axis values: wealth ${formatValue(axes.wealth)}, position-x ${formatValue(axes.positionX)}, position-y ${formatValue(axes.positionY)}, abstract-1 ${formatValue(axes.abstract1)}, abstract-2 ${formatValue(axes.abstract2)}, abstract-3 ${formatValue(axes.abstract3)}`,
   );
 
-  const cultureAxis = deriveCultureAxis(axes.positionX, axes.positionY);
+  // This requires the "Culture Field" to be created. This will be needed before
+  // characters are generated. It should be perlin noise map for each
+  // culture, with centralized peaks for each culture, and decay further out.
+  // For each character, the probability of their culture should be the ratio
+  // between the cultures with values greater than 0 at their position, with
+  // a bonus given to the highest (guarenteeing that there is one above 0).
+  const cultureAxis = 0.5;
   const culture = chooseByAxis(CULTURES, cultureAxis);
   logChoice(generationLog, "culture", cultureAxis, culture.name);
 
