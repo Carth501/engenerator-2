@@ -131,7 +131,7 @@ function App() {
     characters.find((character) => character.id === selectedId) ?? null;
 
   return (
-    <div className="min-h-screen p-6 text-cream-50">
+    <div className="flex h-screen flex-col overflow-hidden p-6 text-cream-50">
       <header className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-panel border border-border bg-surface-900/90 px-6 py-5 shadow-panel backdrop-blur">
         <div>
           <p className="mb-2 text-[0.74rem] uppercase tracking-[0.24em] text-blue-400">
@@ -221,8 +221,8 @@ function App() {
         </section>
       ) : null}
 
-      <main className="content-grid lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-        <section className={`${panelClassName} flex flex-col`}>
+      <main className="content-grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <section className={`${panelClassName} flex min-h-0 flex-col`}>
           <div className="mb-4 flex items-baseline justify-between gap-3">
             <h2 className="text-lg font-semibold tracking-tight">
               Character roster
@@ -231,7 +231,7 @@ function App() {
               {characters.length} characters • {scaleInput.toLowerCase()} scale
             </p>
           </div>
-          <div className="overflow-hidden rounded-card border border-border">
+          <div className="min-h-0 flex-1 overflow-auto rounded-card border border-border">
             <table className="w-full border-collapse text-sm">
               <thead className="bg-surface-800/80 text-left text-blue-300">
                 <tr>
@@ -267,7 +267,9 @@ function App() {
           </div>
         </section>
 
-        <section className={`${panelClassName} flex flex-col gap-3.5`}>
+        <section
+          className={`${panelClassName} flex min-h-0 flex-col gap-3.5 overflow-auto`}
+        >
           <CharacterWorkspace
             characters={characters}
             selectedCharacter={selectedCharacter}
@@ -458,6 +460,7 @@ function AxisVisualizerPane({
   const plotWidth = chartWidth - chartPadding * 2;
   const plotHeight = chartHeight - chartPadding * 2;
   const labeledIds = new Set<number>();
+  const pointById = new Map<number, { chartX: number; chartY: number }>();
 
   if (selectedId !== null) {
     labeledIds.add(selectedId);
@@ -470,12 +473,47 @@ function AxisVisualizerPane({
   const points = characters.map((character) => {
     const x = Math.min(Math.max(character.axes[xAxis], 0), 1);
     const y = Math.min(Math.max(character.axes[yAxis], 0), 1);
+    const chartX = chartPadding + x * plotWidth;
+    const chartY = chartHeight - chartPadding - y * plotHeight;
+
+    pointById.set(character.id, { chartX, chartY });
 
     return {
       character,
-      chartX: chartPadding + x * plotWidth,
-      chartY: chartHeight - chartPadding - y * plotHeight,
+      chartX,
+      chartY,
     };
+  });
+
+  const relationshipLines = characters.flatMap((character) => {
+    const source = pointById.get(character.id);
+    if (!source) {
+      return [];
+    }
+
+    return character.relationships
+      .map((relationship) => {
+        const target = pointById.get(relationship.partnerId);
+        if (!target) {
+          return null;
+        }
+
+        const isSelectedEdge =
+          selectedId !== null &&
+          (character.id === selectedId ||
+            relationship.partnerId === selectedId);
+
+        return {
+          key: `${character.id}-${relationship.partnerId}`,
+          x1: source.chartX,
+          y1: source.chartY,
+          x2: target.chartX,
+          y2: target.chartY,
+          isVisible: selectedId === null || isSelectedEdge,
+          isSelected: isSelectedEdge,
+        };
+      })
+      .filter((line): line is NonNullable<typeof line> => Boolean(line));
   });
 
   return (
@@ -584,6 +622,23 @@ function AxisVisualizerPane({
             >
               {AXIS_OPTIONS.find((axis) => axis.key === yAxis)?.label}
             </text>
+
+            {relationshipLines.map((line) =>
+              line.isVisible ? (
+                <line
+                  key={line.key}
+                  x1={line.x1}
+                  y1={line.y1}
+                  x2={line.x2}
+                  y2={line.y2}
+                  className={
+                    line.isSelected
+                      ? "axis-relationship is-selected"
+                      : "axis-relationship"
+                  }
+                />
+              ) : null,
+            )}
 
             {points.map(({ character, chartX, chartY }) => {
               const isSelected = selectedId === character.id;

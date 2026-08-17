@@ -92,6 +92,16 @@ select {
   stroke-width: 1.4;
 }
 
+.sheet-shell .axis-relationship {
+  stroke: rgba(92, 122, 92, 0.3);
+  stroke-width: 1.1;
+}
+
+.sheet-shell .axis-relationship.is-selected {
+  stroke: rgba(166, 61, 64, 0.62);
+  stroke-width: 1.4;
+}
+
 .sheet-shell .axis-label {
   fill: var(--sheet-rule);
   font-size: 11px;
